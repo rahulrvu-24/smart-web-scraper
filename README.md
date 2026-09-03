@@ -77,11 +77,11 @@ Full schema (SQL DDL), entity relationships, and API design live in [`docs/smart
 
 ## Security and guardrails
 
-- **SSRF protection** — private IP ranges and internal hosts are resolved and blocked before any request is made.
-- **Sandboxed execution** — every scrape runs inside an isolated, short-lived container.
-- **Prompt-injection defense** — scraped content is treated as untrusted data, never as instructions to the LLM.
-- **Schema validation** — extracted output is checked against the requested schema before being stored or returned.
-- **Rate limiting** — per-user and per-target-domain limits, enforced in Redis.
+- **SSRF protection**: private IP ranges and internal hosts are resolved and blocked before any request is made.
+- **Sandboxed execution**: every scrape runs inside an isolated, short-lived container.
+- **Prompt-injection defense**: scraped content is treated as untrusted data, never as instructions to the LLM.
+- **Schema validation**: extracted output is checked against the requested schema before being stored or returned.
+- **Rate limiting**: per-user and per-target-domain limits, enforced in Redis.
 
 ## Project status
 
