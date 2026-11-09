@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
 
+    # LLM extraction (Groq, OpenAI-compatible API)
+    groq_api_key: str = ""
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    groq_model: str = "openai/gpt-oss-120b"
+    groq_fallback_model: str = "llama-3.3-70b-versatile"
+    llm_timeout_seconds: float = 60.0
+    max_page_chars: int = 24_000
+
     # Scraping
     fetch_timeout_seconds: float = 15.0
     max_page_bytes: int = 5_000_000
