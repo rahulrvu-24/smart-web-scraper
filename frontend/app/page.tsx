@@ -22,19 +22,20 @@ const stack = ["Next.js", "FastAPI", "PostgreSQL", "Redis", "Playwright"];
 export default function Home() {
   return (
     <main>
-      <nav className="max-w-6xl mx-auto flex items-center justify-between px-8 py-6">
+      <nav className="max-w-6xl mx-auto flex items-center justify-between px-6 sm:px-8 py-6">
         <span className="font-mono font-semibold text-lg">Smart Web Scraper</span>
         <div className="flex items-center gap-8 text-sm text-ink-muted">
-          <a href="#how" className="hover:text-ink">How it works</a>
-          <a href="#security" className="hover:text-ink">Security</a>
-          <Link href="/status" className="hover:text-ink">Status</Link>
-          <a href={REPO_URL} className="hover:text-ink">GitHub</a>
+          <a href="#how" className="hidden sm:inline hover:text-ink">How it works</a>
+          <a href="#security" className="hidden sm:inline hover:text-ink">Security</a>
+          <Link href="/status" className="hidden sm:inline hover:text-ink">Status</Link>
+          <a href={REPO_URL} className="hidden sm:inline hover:text-ink">GitHub</a>
+          <Link href="/login" className="text-ink font-semibold">Log in</Link>
         </div>
       </nav>
 
       <section className="max-w-6xl mx-auto px-8 grid md:grid-cols-2 gap-12 items-center pt-12 pb-20">
         <div>
-          <h1 className="text-5xl font-bold leading-[1.1] tracking-tight">
+          <h1 className="text-4xl sm:text-5xl font-bold leading-[1.1] tracking-tight">
             Turn any webpage
             <br />
             into structured JSON.
@@ -44,11 +45,11 @@ export default function Home() {
             returns clean JSON, validated against your schema every time.
           </p>
           <div className="flex gap-4 mt-8">
-            <a href={REPO_URL} className="bg-gold text-paper px-6 py-3 font-semibold">
+            <Link href="/register" className="bg-gold text-paper px-6 py-3 font-semibold">
+              Try it free
+            </Link>
+            <a href={REPO_URL} className="border border-line px-6 py-3">
               Get the code
-            </a>
-            <a href="#how" className="border border-line px-6 py-3">
-              See how it works
             </a>
           </div>
         </div>
