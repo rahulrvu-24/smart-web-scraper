@@ -50,13 +50,14 @@ The original design used Redis and Celery. Render's free tier has no background 
 - **SSRF protection:** only `http`/`https` on standard ports; hostnames are resolved and every address must be public (blocks `127.0.0.1`, `10.x`, `169.254.169.254`, `::1`, IPv4-mapped IPv6 and internal hostnames). Redirects and browser sub-requests are re-checked.
 - **Prompt-injection defense:** page content is fenced inside `<page_content>` and the system prompt tells the model to treat it as data only. Output is constrained by a strict JSON schema and re-validated.
 - **Auth:** Argon2id hashes, 60-minute JWTs, the server refuses to start in production with the development secret, and login errors don't reveal which emails exist.
+- **Audit trail:** logins, failed logins, data changes and blocked URLs are recorded with the client IP, in the same transaction as the change.
 - **Ownership:** every schema and job query is scoped to the logged-in user; other users' records return 404.
 - **Rate limits:** `JOBS_PER_HOUR` (default 30) and `MAX_ACTIVE_JOBS_PER_USER` (default 5), enforced in Postgres.
 - **Resource limits:** 5 MB page cap, HTML-only content types, 15 s fetch timeout, images, fonts and media blocked in the browser, one job at a time per worker.
 
 ## Database
 
-Five tables, created by Alembic migrations in `backend/alembic/versions/`:
+Seven tables, created by Alembic migrations in `backend/alembic/versions/`:
 
 | Table | Holds |
 |---|---|
@@ -65,8 +66,10 @@ Five tables, created by Alembic migrations in `backend/alembic/versions/`:
 | `extraction_schemas` | saved field sets per user, versioned, unique name per user |
 | `scrape_jobs` | URL, field snapshot, status enum (`queued`, `running`, `succeeded`, `failed`), attempts, retry time |
 | `scrape_results` | extracted JSON, validation errors, model, tokens, latency, fetch method; one per job |
+| `llm_usage_logs` | every LLM call, including failed and fallback calls: model, mode, tokens, latency, error |
+| `audit_logs` | sign-ups, logins, failed logins, schema and job changes, blocked URLs, with user, target and IP |
 
-Deleting a user cascades to everything they own; deleting a schema keeps its jobs (`ON DELETE SET NULL`).
+Deleting a user cascades to everything they own. Deleting a schema keeps its jobs, deleting a job keeps its usage rows, and deleting an account keeps its audit trail; all three use `ON DELETE SET NULL`.
 
 ## API
 
@@ -83,6 +86,8 @@ Interactive docs at `/docs` once the API is running.
 | `GET` | `/jobs` | paginated list, optional `?status=` |
 | `GET` `DELETE` | `/jobs/{id}` | job with result / delete |
 | `POST` | `/jobs/{id}/retry` | re-queue a failed job |
+| `GET` | `/usage` | LLM calls, tokens, latency and fallbacks per model; jobs by status |
+| `GET` | `/activity` | the user's audit trail, newest first |
 | `GET` | `/health`, `/health/db`, `/health/worker` | liveness, database, worker + queue depth |
 
 ## Project structure
@@ -91,19 +96,19 @@ Interactive docs at `/docs` once the API is running.
 smart-web-scraper/
 ├── backend/
 │   ├── app/
-│   │   ├── api/            auth, schemas, jobs, health routes; deps (DbSession, CurrentUser)
-│   │   ├── core/           settings, password hashing + JWT
+│   │   ├── api/            auth, schemas, jobs, insights, health routes; deps (DbSession, CurrentUser)
+│   │   ├── core/           settings, password hashing + JWT, audit logging
 │   │   ├── db/             SQLAlchemy Base, engine, session
-│   │   ├── models/         User, APIKey, ExtractionSchema, ScrapeJob, ScrapeResult
+│   │   ├── models/         User, APIKey, ExtractionSchema, ScrapeJob, ScrapeResult, LLMUsageLog, AuditLog
 │   │   ├── schemas/        Pydantic request/response models
 │   │   ├── scraper/        SSRF guard, fetcher (HTTP + Chromium), HTML cleaner
 │   │   ├── extraction/     field specs → JSON Schema, Groq client, CLI
 │   │   └── worker/         Postgres queue + worker loop
 │   ├── alembic/            migrations
-│   ├── tests/              81 tests (unit + Postgres-backed)
+│   ├── tests/              94 tests (unit + Postgres-backed)
 │   └── Dockerfile
 ├── frontend/
-│   ├── app/                landing, login, register, dashboard, jobs/[id], schemas, status
+│   ├── app/                landing, login, register, dashboard, jobs/[id], schemas, activity, status
 │   ├── components/         UI kit, app shell, field builder, JSON viewer
 │   └── lib/                API client, auth hook, helpers
 ├── docker-compose.yml      local Postgres
@@ -162,7 +167,8 @@ The free Render service sleeps after 15 minutes without traffic; the first reque
 - [x] Backend: auth, schemas, jobs, health checks
 - [x] Scraping pipeline: SSRF guard, HTTP + Chromium fetcher, Groq extraction with validation
 - [x] Postgres job queue with retries, backoff and crash recovery
-- [x] Frontend: auth, dashboard, field builder, live job view, schemas, status
+- [x] Frontend: auth, dashboard, field builder, live job view, schemas, activity, status
+- [x] LLM usage logging and audit trail, with usage and activity views
 - [x] Docker, Render blueprint, CI
 - [ ] Evaluation set measuring extraction accuracy per field
 - [ ] API-key access for scripts (table exists, endpoints to come)
