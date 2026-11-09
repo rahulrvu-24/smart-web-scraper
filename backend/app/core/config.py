@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
 
+    # Scraping
+    fetch_timeout_seconds: float = 15.0
+    max_page_bytes: int = 5_000_000
+    playwright_enabled: bool = True
+    browser_executable_path: str | None = None  # only needed if Chromium isn't where Playwright expects
+    min_text_chars_before_render: int = 400
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip().rstrip("/") for o in self.cors_origins.split(",") if o.strip()]
