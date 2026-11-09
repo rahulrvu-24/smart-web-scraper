@@ -1,9 +1,10 @@
 import uuid
 
-from fastapi import APIRouter, HTTPException, Response, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from sqlalchemy import select
 
 from app.api.deps import CurrentUser, DbSession
+from app.core import audit
 from app.models import ExtractionSchema
 from app.schemas.extraction_schema import SchemaCreate, SchemaRead
 
@@ -34,7 +35,7 @@ def list_schemas(db: DbSession, user: CurrentUser) -> list[ExtractionSchema]:
 
 
 @router.post("", response_model=SchemaRead, status_code=status.HTTP_201_CREATED)
-def create_schema(body: SchemaCreate, db: DbSession, user: CurrentUser) -> ExtractionSchema:
+def create_schema(body: SchemaCreate, db: DbSession, user: CurrentUser, request: Request) -> ExtractionSchema:
     if _name_taken(db, user, body.name):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="You already have a schema with this name")
     schema = ExtractionSchema(
@@ -44,6 +45,8 @@ def create_schema(body: SchemaCreate, db: DbSession, user: CurrentUser) -> Extra
         fields={k: v.model_dump() for k, v in body.fields.items()},
     )
     db.add(schema)
+    db.flush()
+    audit.record(db, request, "schema.create", user.id, "extraction_schema", schema.id, {"name": schema.name})
     db.commit()
     db.refresh(schema)
     return schema
@@ -55,7 +58,9 @@ def get_schema(schema_id: uuid.UUID, db: DbSession, user: CurrentUser) -> Extrac
 
 
 @router.put("/{schema_id}", response_model=SchemaRead)
-def update_schema(schema_id: uuid.UUID, body: SchemaCreate, db: DbSession, user: CurrentUser) -> ExtractionSchema:
+def update_schema(
+    schema_id: uuid.UUID, body: SchemaCreate, db: DbSession, user: CurrentUser, request: Request
+) -> ExtractionSchema:
     schema = _get_owned(db, user, schema_id)
     if _name_taken(db, user, body.name, exclude=schema.id):
         raise HTTPException(status.HTTP_409_CONFLICT, detail="You already have a schema with this name")
@@ -63,13 +68,16 @@ def update_schema(schema_id: uuid.UUID, body: SchemaCreate, db: DbSession, user:
     schema.description = body.description
     schema.fields = {k: v.model_dump() for k, v in body.fields.items()}
     schema.version += 1
+    audit.record(db, request, "schema.update", user.id, "extraction_schema", schema.id, {"version": schema.version})
     db.commit()
     db.refresh(schema)
     return schema
 
 
 @router.delete("/{schema_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_schema(schema_id: uuid.UUID, db: DbSession, user: CurrentUser) -> Response:
-    db.delete(_get_owned(db, user, schema_id))
+def delete_schema(schema_id: uuid.UUID, db: DbSession, user: CurrentUser, request: Request) -> Response:
+    schema = _get_owned(db, user, schema_id)
+    audit.record(db, request, "schema.delete", user.id, "extraction_schema", schema.id, {"name": schema.name})
+    db.delete(schema)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -2,11 +2,12 @@ import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import CurrentUser, DbSession
+from app.core import audit
 from app.core.config import get_settings
 from app.models import ExtractionSchema, JobStatus, ScrapeJob
 from app.schemas.job import JobCreate, JobPage, JobRead
@@ -48,10 +49,13 @@ def _enforce_limits(db: DbSession, user: CurrentUser) -> None:
 
 
 @router.post("", response_model=JobRead, status_code=status.HTTP_202_ACCEPTED)
-async def create_job(body: JobCreate, db: DbSession, user: CurrentUser) -> ScrapeJob:
+async def create_job(body: JobCreate, db: DbSession, user: CurrentUser, request: Request) -> ScrapeJob:
     try:
         url = await asyncio.to_thread(check_url, body.url)  # DNS lookup: keep it off the event loop
     except UnsafeURLError as exc:
+        # Blocked URLs are worth recording: repeated ones suggest someone probing for SSRF.
+        audit.record(db, request, "job.blocked_url", user.id, details={"url": body.url[:500], "reason": str(exc)})
+        db.commit()
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc))
     _enforce_limits(db, user)
 
@@ -65,6 +69,8 @@ async def create_job(body: JobCreate, db: DbSession, user: CurrentUser) -> Scrap
 
     job = ScrapeJob(user_id=user.id, schema_id=body.schema_id, url=url, fields=fields)
     db.add(job)
+    db.flush()
+    audit.record(db, request, "job.create", user.id, "scrape_job", job.id, {"url": url[:500]})
     db.commit()
     return _get_owned(db, user, job.id)
 
@@ -91,7 +97,7 @@ def get_job(job_id: uuid.UUID, db: DbSession, user: CurrentUser) -> ScrapeJob:
 
 
 @router.post("/{job_id}/retry", response_model=JobRead, status_code=status.HTTP_202_ACCEPTED)
-def retry_job(job_id: uuid.UUID, db: DbSession, user: CurrentUser) -> ScrapeJob:
+def retry_job(job_id: uuid.UUID, db: DbSession, user: CurrentUser, request: Request) -> ScrapeJob:
     job = _get_owned(db, user, job_id)
     if job.status != JobStatus.FAILED:
         raise HTTPException(status.HTTP_409_CONFLICT, detail="Only failed jobs can be retried")
@@ -102,12 +108,15 @@ def retry_job(job_id: uuid.UUID, db: DbSession, user: CurrentUser) -> ScrapeJob:
     job.run_after = None
     job.started_at = None
     job.finished_at = None
+    audit.record(db, request, "job.retry", user.id, "scrape_job", job.id)
     db.commit()
     return _get_owned(db, user, job.id)
 
 
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_job(job_id: uuid.UUID, db: DbSession, user: CurrentUser) -> Response:
-    db.delete(_get_owned(db, user, job_id))
+def delete_job(job_id: uuid.UUID, db: DbSession, user: CurrentUser, request: Request) -> Response:
+    job = _get_owned(db, user, job_id)
+    audit.record(db, request, "job.delete", user.id, "scrape_job", job.id, {"url": job.url[:500]})
+    db.delete(job)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

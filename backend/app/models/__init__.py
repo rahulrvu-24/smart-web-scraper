@@ -2,6 +2,7 @@
 # Alembic reads Base.metadata from this package to generate migrations.
 from app.db.base import Base
 from app.models.api_key import APIKey
+from app.models.audit_log import AuditLog
 from app.models.extraction_schema import ExtractionSchema
 from app.models.llm_usage_log import LLMUsageLog
 from app.models.scrape_job import JobStatus, ScrapeJob
@@ -17,4 +18,5 @@ __all__ = [
     "ScrapeJob",
     "ScrapeResult",
     "LLMUsageLog",
+    "AuditLog",
 ]
