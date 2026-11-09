@@ -75,6 +75,12 @@ def client(session_factory) -> Iterator[TestClient]:
         app.dependency_overrides.clear()
 
 
+@pytest.fixture
+def public_dns(monkeypatch):
+    """Pretend every hostname resolves to a public IP, so tests never need the internet."""
+    monkeypatch.setattr("app.scraper.url_guard.resolve_host", lambda host: ["93.184.215.14"])
+
+
 def register_and_login(client: TestClient, email: str = "rahul@example.com", password: str = "s3cret-pass") -> dict[str, str]:
     response = client.post("/auth/register", json={"email": email, "password": password})
     assert response.status_code == 201, response.text
