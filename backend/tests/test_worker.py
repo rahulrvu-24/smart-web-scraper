@@ -131,3 +131,19 @@ def test_stale_running_jobs_are_requeued(session_factory, make_job):
         assert queue.recover_stale_jobs(s, SETTINGS) == 1
         assert s.get(ScrapeJob, job_id).status == JobStatus.QUEUED
 
+
+def test_end_to_end_through_the_api(client, monkeypatch, worker_db, session_factory, public_dns):
+    from tests.conftest import register_and_login
+
+    auth = register_and_login(client)
+    body = {"url": "https://shop.example/p/1", "fields": {"title": {"type": "string"}, "price": {"type": "number"}}}
+    job_id = client.post("/jobs", json=body, headers=auth).json()["id"]
+    monkeypatch.setattr(runner, "fetch_page", _fake_fetch())
+    monkeypatch.setattr(runner, "extract", _fake_extract)
+    with session_factory() as s:
+        claimed = queue.claim_next_job(s)
+    asyncio.run(runner.process_job(claimed, SETTINGS))
+    job = client.get(f"/jobs/{job_id}", headers=auth).json()
+    assert job["status"] == "succeeded"
+    assert job["result"]["data"] == {"title": "Pro", "price": 42.99}
+    assert job["result"]["is_valid"] is True
