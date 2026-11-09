@@ -22,6 +22,7 @@ type Check = {
 const CHECKS: Check[] = [
   { key: "api", label: "API", endpoint: "/health", run: api.health },
   { key: "db", label: "Database", endpoint: "/health/db", run: api.dbHealth },
+  { key: "worker", label: "Scrape worker", endpoint: "/health/worker", run: api.workerHealth },
 ];
 
 const POLL_MS = 10_000;
