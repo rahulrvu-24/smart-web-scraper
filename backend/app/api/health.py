@@ -7,6 +7,12 @@ from app.db.session import get_db
 from app.worker.queue import count_queued
 
 router = APIRouter(prefix="/health", tags=["health"])
+root_router = APIRouter(tags=["health"])
+
+
+@root_router.get("/")
+def root() -> dict[str, str]:
+    return {"name": "Smart Web Scraper API", "docs": "/docs", "health": "/health"}
 
 
 @router.get("")
