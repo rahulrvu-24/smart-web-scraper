@@ -9,6 +9,7 @@ from app.db.base import Base, TimestampMixin
 if TYPE_CHECKING:
     from app.models.api_key import APIKey
     from app.models.extraction_schema import ExtractionSchema
+    from app.models.scrape_job import ScrapeJob
 
 
 class User(TimestampMixin, Base):
@@ -24,5 +25,8 @@ class User(TimestampMixin, Base):
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )
     schemas: Mapped[list["ExtractionSchema"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan", passive_deletes=True
+    )
+    jobs: Mapped[list["ScrapeJob"]] = relationship(
         back_populates="user", cascade="all, delete-orphan", passive_deletes=True
     )

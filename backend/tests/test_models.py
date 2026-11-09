@@ -45,3 +45,25 @@ def test_schema_names_are_unique_per_user():
     assert "uq_extraction_schemas_user_id_name" in _constraint_names("extraction_schemas")
     fk = _foreign_key("extraction_schemas", "user_id")
     assert fk.ondelete == "CASCADE"
+
+def test_job_status_values_are_lowercase_strings():
+    from app.models import JobStatus
+
+    assert [s.value for s in JobStatus] == ["queued", "running", "succeeded", "failed"]
+    assert Base.metadata.tables["scrape_jobs"].c.status.type.enums == [
+        "queued",
+        "running",
+        "succeeded",
+        "failed",
+    ]
+
+
+def test_deleting_a_schema_keeps_its_jobs():
+    fk = _foreign_key("scrape_jobs", "schema_id")
+    assert fk.target_fullname == "extraction_schemas.id"
+    assert fk.ondelete == "SET NULL"
+
+
+def test_one_result_per_job():
+    assert "uq_scrape_results_job_id" in _constraint_names("scrape_results")
+    assert _foreign_key("scrape_results", "job_id").ondelete == "CASCADE"
