@@ -8,7 +8,7 @@ Design and build a production-grade, hosted full-stack AI web scraper that uses 
 
 ## How it works
 
-1. Submit a URL and a schema, telling Sift what fields you want back.
+1. Submit a URL and a schema, telling it what fields you want back.
 2. The backend validates the URL and blocks private or internal targets.
 3. A sandboxed worker renders the page, including JavaScript-rendered content.
 4. An LLM extracts the requested fields, nothing more.
@@ -45,31 +45,67 @@ flowchart TD
 
 ```
 smart-web-scraper/
-├── frontend/          Next.js app (landing page, schema builder, job dashboard)
+├── frontend/                  Next.js app
 │   ├── app/
 │   │   ├── layout.tsx
-│   │   ├── page.tsx
-│   │   └── globals.css
-│   └── tailwind.config.ts
-├── backend/           FastAPI service (in progress)
-├── docs/              Architecture, workflow, and database schema docs
+│   │   ├── page.tsx           Landing page
+│   │   ├── status/page.tsx    Live API + database status page
+│   │   └── globals.css        Tailwind v4 theme (@theme block)
+│   ├── lib/api.ts             Typed client for the FastAPI backend
+│   └── .env.example           NEXT_PUBLIC_API_URL template
+├── backend/                   FastAPI service
+│   ├── app/
+│   │   ├── main.py            App entrypoint, CORS, routers
+│   │   ├── api/health.py      /health and /health/db
+│   │   ├── core/config.py     Settings from environment variables
+│   │   └── db/session.py      SQLAlchemy engine and session dependency
+│   ├── tests/                 pytest suite
+│   ├── requirements.txt
+│   ├── requirements-dev.txt
+│   └── .env.example           DATABASE_URL and CORS_ORIGINS template
+├── docker-compose.yml         Local PostgreSQL 16
 └── README.md
 ```
 
 ## Getting started
 
-Prerequisites: Node.js 18+.
+Prerequisites: Node.js 18+, Python 3.12+, Docker Desktop.
 
 ```bash
-git clone <your-repo-url>
-cd smart-web-scraper/frontend
+git clone https://github.com/rahulrvu-24/smart-web-scraper.git
+cd smart-web-scraper
+```
+
+**1. Database** (from the repo root)
+
+```bash
+docker compose up -d postgres
+docker compose ps        # wait until STATUS shows (healthy)
+```
+
+**2. Backend** (in `backend/`)
+
+```bash
+cd backend
+python -m venv .venv
+.venv\Scripts\activate             # macOS/Linux: source .venv/bin/activate
+pip install -r requirements-dev.txt
+cp .env.example .env               # Windows PowerShell: Copy-Item .env.example .env
+uvicorn app.main:app --reload --port 8000
+```
+
+API docs: `http://localhost:8000/docs`. Run tests with `pytest`.
+
+**3. Frontend** (in `frontend/`, in a second terminal)
+
+```bash
+cd frontend
 npm install
+cp .env.example .env.local         # Windows PowerShell: Copy-Item .env.example .env.local
 npm run dev
 ```
 
-Visit `http://localhost:3000`.
-
-Backend setup instructions will be added once the FastAPI service is scaffolded.
+Visit `http://localhost:3000`, then `http://localhost:3000/status` to confirm the frontend can reach the API and the database.
 
 ## Database schema
 
@@ -88,7 +124,9 @@ Full schema (SQL DDL), entity relationships, and API design live in [`docs/smart
 - [x] Problem definition and requirement analysis
 - [x] System architecture and database schema design
 - [x] Landing page
-- [ ] Backend API and auth
+- [x] Backend skeleton, PostgreSQL via Docker, and health checks
+- [x] Frontend ↔ backend connection (CORS, API client, status page)
+- [ ] Database models, migrations, and JWT auth
 - [ ] Async job queue and sandboxed scraper workers
 - [ ] LLM extraction layer and tool calling
 - [ ] CI/CD and hosted deployment

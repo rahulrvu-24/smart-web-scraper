@@ -1,5 +1,7 @@
+import Link from "next/link";
+
 const steps: [string, string][] = [
-  ["Submit a URL and a schema", "Tell Sift what fields you want back."],
+  ["Submit a URL and a schema", "Tell it what fields you want back."],
   ["The backend validates the URL", "Private and internal targets are blocked before any request is made."],
   ["A sandboxed worker renders the page", "Including JavaScript-rendered content."],
   ["An LLM extracts your fields", "Only the fields you asked for, nothing more."],
@@ -13,6 +15,8 @@ const guardrails: [string, string][] = [
   ["Rate limits", "Per-user and per-domain limits keep both sides safe."],
 ];
 
+const REPO_URL = "https://github.com/rahulrvu-24/smart-web-scraper";
+
 const stack = ["Next.js", "FastAPI", "PostgreSQL", "Redis", "Playwright"];
 
 export default function Home() {
@@ -23,7 +27,8 @@ export default function Home() {
         <div className="flex items-center gap-8 text-sm text-ink-muted">
           <a href="#how" className="hover:text-ink">How it works</a>
           <a href="#security" className="hover:text-ink">Security</a>
-          <a href="https://github.com/" className="hover:text-ink">GitHub</a>
+          <Link href="/status" className="hover:text-ink">Status</Link>
+          <a href={REPO_URL} className="hover:text-ink">GitHub</a>
         </div>
       </nav>
 
@@ -39,7 +44,7 @@ export default function Home() {
             returns clean JSON, validated against your schema every time.
           </p>
           <div className="flex gap-4 mt-8">
-            <a href="https://github.com/" className="bg-gold text-paper px-6 py-3 font-semibold">
+            <a href={REPO_URL} className="bg-gold text-paper px-6 py-3 font-semibold">
               Get the code
             </a>
             <a href="#how" className="border border-line px-6 py-3">
