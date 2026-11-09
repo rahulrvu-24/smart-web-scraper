@@ -10,6 +10,7 @@ import { useCurrentUser } from "@/lib/auth";
 const NAV = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/schemas", label: "Schemas" },
+  { href: "/activity", label: "Activity" },
   { href: "/status", label: "Status" },
 ];
 

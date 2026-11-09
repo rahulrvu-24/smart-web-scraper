@@ -7,7 +7,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import AppShell from "@/components/AppShell";
 import FieldBuilder from "@/components/FieldBuilder";
 import { Alert, Button, Input, Label, Panel, Select, StatusBadge } from "@/components/ui";
-import { api, type JobSummary, type Schema } from "@/lib/api";
+import { api, type JobSummary, type Schema, type UsageSummary } from "@/lib/api";
 import { fieldsFromRows, newRow, PRESETS, rowsFromFields, type FieldRow } from "@/lib/fields";
 import { duration, shortUrl, timeAgo } from "@/lib/format";
 
@@ -193,11 +193,59 @@ function RecentJobs({ jobs, total }: { jobs: JobSummary[] | null; total: number 
   );
 }
 
+function UsagePanel({ usage }: { usage: UsageSummary | null }) {
+  if (!usage) return null;
+  const done = usage.jobs_by_status.succeeded ?? 0;
+  const failed = usage.jobs_by_status.failed ?? 0;
+  const stats: [string, string][] = [
+    ["Jobs succeeded", `${done}${failed ? ` / ${done + failed}` : ""}`],
+    ["LLM calls", `${usage.llm_calls}${usage.failed_llm_calls ? ` (${usage.failed_llm_calls} failed)` : ""}`],
+    ["Tokens in / out", `${usage.input_tokens.toLocaleString()} / ${usage.output_tokens.toLocaleString()}`],
+    ["Fallback model used", `${usage.fallback_used}×`],
+  ];
+  return (
+    <Panel title="Usage">
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-4">
+        {stats.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-xs uppercase tracking-wide text-ink-muted">{label}</dt>
+            <dd className="font-mono text-sm mt-1">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {usage.by_model.length > 0 && (
+        <table className="w-full text-xs font-mono mt-5 border-t border-line">
+          <thead>
+            <tr className="text-ink-muted text-left">
+              <th className="font-normal py-2">Model</th>
+              <th className="font-normal py-2 text-right">Calls</th>
+              <th className="font-normal py-2 text-right">Avg time</th>
+            </tr>
+          </thead>
+          <tbody>
+            {usage.by_model.map((m) => (
+              <tr key={m.model} className="border-t border-line">
+                <td className="py-2 break-all pr-2">{m.model}</td>
+                <td className="py-2 text-right">
+                  {m.calls}
+                  {m.failed_calls > 0 && <span className="text-raw-tag"> ({m.failed_calls} failed)</span>}
+                </td>
+                <td className="py-2 text-right">{(m.avg_latency_ms / 1000).toFixed(1)} s</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </Panel>
+  );
+}
+
 function Dashboard() {
   const [schemas, setSchemas] = useState<Schema[]>([]);
   const [jobs, setJobs] = useState<JobSummary[] | null>(null);
   const [total, setTotal] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [usage, setUsage] = useState<UsageSummary | null>(null);
 
   const loadSchemas = useCallback(() => {
     api.listSchemas().then(setSchemas).catch(() => {});
@@ -220,6 +268,10 @@ function Dashboard() {
           setTotal(page.total);
           setLoadError(null);
         })
+        .then(() => api.usage())
+        .then((u) => {
+          if (!cancelled && u) setUsage(u);
+        })
         .catch((err) => {
           if (!cancelled) setLoadError(err instanceof Error ? err.message : "Could not load jobs");
         });
@@ -240,7 +292,10 @@ function Dashboard() {
       {loadError && <Alert>{loadError}</Alert>}
       <div className="grid lg:grid-cols-[1.25fr_1fr] gap-6 items-start">
         <NewJobForm schemas={schemas} onSchemaSaved={loadSchemas} />
-        <RecentJobs jobs={jobs} total={total} />
+        <div className="flex flex-col gap-6">
+          <RecentJobs jobs={jobs} total={total} />
+          <UsagePanel usage={usage} />
+        </div>
       </div>
     </div>
   );

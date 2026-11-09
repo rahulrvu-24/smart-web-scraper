@@ -154,6 +154,33 @@ export type JobResult = {
 
 export type Job = JobSummary & { fields: Fields; result: JobResult | null };
 export type JobPage = { items: JobSummary[]; total: number };
+export type ModelUsage = {
+  model: string;
+  calls: number;
+  failed_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  avg_latency_ms: number;
+};
+export type UsageSummary = {
+  jobs_by_status: Partial<Record<JobStatus, number>>;
+  llm_calls: number;
+  failed_llm_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  fallback_used: number;
+  by_model: ModelUsage[];
+};
+export type ActivityItem = {
+  id: string;
+  action: string;
+  target_type: string | null;
+  target_id: string | null;
+  ip_address: string | null;
+  details: Record<string, unknown> | null;
+  created_at: string;
+};
+
 export type NewJob = { url: string; schema_id: string } | { url: string; fields: Fields };
 
 // ---------- endpoints ----------
@@ -190,4 +217,7 @@ export const api = {
   getJob: (id: string) => request<Job>(`/jobs/${id}`),
   retryJob: (id: string) => request<Job>(`/jobs/${id}/retry`, { method: "POST" }),
   deleteJob: (id: string) => request<void>(`/jobs/${id}`, { method: "DELETE" }),
+
+  usage: () => request<UsageSummary>("/usage"),
+  activity: (limit = 50) => request<ActivityItem[]>(`/activity?limit=${limit}`),
 };
