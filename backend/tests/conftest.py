@@ -39,9 +39,11 @@ def db_engine():
     finally:
         admin.dispose()
     engine = create_engine(test_url)
-    Base.metadata.drop_all(engine)
+    # Start from an empty schema every run, so tables or types left over from an
+    # older version of the models can never get in the way.
     with engine.begin() as conn:
-        conn.execute(text("DROP TYPE IF EXISTS job_status"))
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
     Base.metadata.create_all(engine)
     yield engine
     engine.dispose()
