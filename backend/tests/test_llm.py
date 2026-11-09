@@ -87,3 +87,23 @@ def test_page_content_is_fenced_as_untrusted_data():
     assert "<page_content>" in prompt and "</page_content>" in prompt
     assert "[content truncated]" in prompt
     assert "- price (number)" in prompt
+
+
+def test_every_attempt_is_recorded_for_usage_logs():
+    def handler(req, n):
+        if n == 1:
+            return httpx.Response(400, json={"error": {"message": "json_validate_failed"}})
+        return _completion('{"title": "Pro", "price": 42.99}', prompt_tokens=300, completion_tokens=20)
+
+    result, _ = _run(handler)
+    first, second = result.attempts
+    assert (first.model, first.mode, first.succeeded) == ("openai/gpt-oss-120b", "json_schema", False)
+    assert "json_validate_failed" in first.error
+    assert (second.model, second.mode, second.succeeded) == ("llama-3.3-70b-versatile", "json_object", True)
+    assert (second.input_tokens, second.output_tokens) == (300, 20)
+
+
+def test_failed_extraction_still_carries_its_attempts():
+    with pytest.raises(LLMError) as info:
+        _run(lambda req, n: httpx.Response(503, json={}))
+    assert [a.succeeded for a in info.value.attempts] == [False, False]

@@ -14,7 +14,7 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session
 
 from app.core.config import Settings
-from app.models import JobStatus, ScrapeJob, ScrapeResult
+from app.models import JobStatus, LLMUsageLog, ScrapeJob, ScrapeResult
 
 BACKOFF_SECONDS = 30
 
@@ -22,6 +22,7 @@ BACKOFF_SECONDS = 30
 @dataclass
 class ClaimedJob:
     id: uuid.UUID
+    user_id: uuid.UUID
     url: str
     fields: dict[str, Any]
     attempts: int
@@ -45,7 +46,7 @@ def claim_next_job(db: Session) -> ClaimedJob | None:
     job.finished_at = None
     job.attempts += 1
     db.commit()
-    return ClaimedJob(id=job.id, url=job.url, fields=dict(job.fields), attempts=job.attempts)
+    return ClaimedJob(id=job.id, user_id=job.user_id, url=job.url, fields=dict(job.fields), attempts=job.attempts)
 
 
 def recover_stale_jobs(db: Session, settings: Settings) -> int:
@@ -92,6 +93,28 @@ def mark_failed(db: Session, job_id: uuid.UUID, message: str, retryable: bool, s
     else:
         job.status = JobStatus.FAILED
         job.finished_at = datetime.now(UTC)
+    db.commit()
+
+
+def record_llm_usage(db: Session, user_id: uuid.UUID, job_id: uuid.UUID, attempts: list[Any]) -> None:
+    """Save one llm_usage_logs row per LLM call made for this job."""
+    if not attempts:
+        return
+    job_exists = db.get(ScrapeJob, job_id) is not None
+    for a in attempts:
+        db.add(
+            LLMUsageLog(
+                user_id=user_id,
+                job_id=job_id if job_exists else None,
+                model=a.model,
+                mode=a.mode,
+                succeeded=a.succeeded,
+                input_tokens=a.input_tokens,
+                output_tokens=a.output_tokens,
+                latency_ms=a.latency_ms,
+                error_message=a.error,
+            )
+        )
     db.commit()
 
 

@@ -38,7 +38,10 @@ async def process_job(job: queue.ClaimedJob, settings: Settings) -> None:
         await _fail(job.id, "The job's field list is invalid", retryable=False, settings=settings)
     except UnsafeURLError as exc:
         await _fail(job.id, f"Blocked: {exc}", retryable=False, settings=settings)
-    except (FetchError, LLMError) as exc:
+    except LLMError as exc:
+        await _record_usage(job, exc.attempts)
+        await _fail(job.id, str(exc), retryable=exc.retryable, settings=settings)
+    except FetchError as exc:
         await _fail(job.id, str(exc), retryable=exc.retryable, settings=settings)
     except Exception:  # noqa: BLE001 - one bad job must never kill the worker
         log.exception("Job %s crashed", job.id)
@@ -56,8 +59,16 @@ async def process_job(job: queue.ClaimedJob, settings: Settings) -> None:
             output_tokens=extraction.output_tokens,
             latency_ms=extraction.latency_ms,
         )
+        await _record_usage(job, extraction.attempts)
         await asyncio.to_thread(_in_session, queue.mark_succeeded, job.id, result)
         log.info("Job %s succeeded with %s (valid=%s)", job.id, extraction.model, extraction.is_valid)
+
+
+async def _record_usage(job: queue.ClaimedJob, attempts: list) -> None:
+    try:
+        await asyncio.to_thread(_in_session, queue.record_llm_usage, job.user_id, job.id, attempts)
+    except Exception:  # noqa: BLE001 - losing a usage row must never fail the job
+        log.exception("Could not record LLM usage for job %s", job.id)
 
 
 async def _fail(job_id: uuid.UUID, message: str, retryable: bool, settings: Settings) -> None:

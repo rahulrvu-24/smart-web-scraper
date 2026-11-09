@@ -4,8 +4,8 @@ import uuid
 import pytest
 
 from app.core.config import Settings
-from app.extraction.llm import Extraction, LLMError
-from app.models import JobStatus, ScrapeJob, User
+from app.extraction.llm import Extraction, LLMAttempt, LLMError
+from app.models import JobStatus, LLMUsageLog, ScrapeJob, User
 from app.scraper.fetcher import FetchedPage, FetchError
 from app.worker import queue, runner
 
@@ -41,7 +41,14 @@ def _fake_fetch(html="<html><title>Shop</title><body><h1>Pro</h1><p>$42.99</p></
 
 
 async def _fake_extract(fields, page, url, settings):
-    return Extraction(data={"title": "Pro", "price": 42.99}, is_valid=True, errors=[], model="test-model", input_tokens=10, output_tokens=5, latency_ms=7)
+    attempts = [
+        LLMAttempt(model="strict-model", mode="json_schema", succeeded=False, latency_ms=3, error="LLM API busy (HTTP 503)"),
+        LLMAttempt(model="test-model", mode="json_object", succeeded=True, input_tokens=10, output_tokens=5, latency_ms=7),
+    ]
+    return Extraction(
+        data={"title": "Pro", "price": 42.99}, is_valid=True, errors=[], model="test-model",
+        input_tokens=10, output_tokens=5, latency_ms=7, attempts=attempts,
+    )
 
 
 def test_claim_skips_jobs_locked_by_another_worker(session_factory, make_job):
@@ -94,7 +101,8 @@ def test_permanent_failure_stops_immediately(monkeypatch, worker_db, session_fac
     monkeypatch.setattr(runner, "fetch_page", _fake_fetch())
 
     async def bad_key(*args):
-        raise LLMError("The Groq API key was rejected (check GROQ_API_KEY)")
+        attempt = LLMAttempt(model="m", mode="json_schema", succeeded=False, error="key rejected")
+        raise LLMError("The Groq API key was rejected (check GROQ_API_KEY)", attempts=[attempt])
 
     monkeypatch.setattr(runner, "extract", bad_key)
     with session_factory() as s:
@@ -147,3 +155,47 @@ def test_end_to_end_through_the_api(client, monkeypatch, worker_db, session_fact
     assert job["status"] == "succeeded"
     assert job["result"]["data"] == {"title": "Pro", "price": 42.99}
     assert job["result"]["is_valid"] is True
+
+
+def test_llm_calls_are_logged_with_the_job(monkeypatch, worker_db, session_factory, make_job):
+    job_id = make_job()
+    monkeypatch.setattr(runner, "fetch_page", _fake_fetch())
+    monkeypatch.setattr(runner, "extract", _fake_extract)
+    with session_factory() as s:
+        claimed = queue.claim_next_job(s)
+    asyncio.run(runner.process_job(claimed, SETTINGS))
+    with session_factory() as s:
+        logs = s.query(LLMUsageLog).order_by(LLMUsageLog.latency_ms).all()
+        assert [(l.model, l.succeeded) for l in logs] == [("strict-model", False), ("test-model", True)]
+        assert all(l.job_id == job_id and l.user_id == claimed.user_id for l in logs)
+        assert logs[1].input_tokens == 10
+
+
+def test_failed_llm_calls_are_logged_too(monkeypatch, worker_db, session_factory, make_job):
+    make_job()
+    monkeypatch.setattr(runner, "fetch_page", _fake_fetch())
+
+    async def bad_key(*args):
+        raise LLMError("The Groq API key was rejected", attempts=[LLMAttempt(model="m", mode="json_schema", succeeded=False, error="401")])
+
+    monkeypatch.setattr(runner, "extract", bad_key)
+    with session_factory() as s:
+        claimed = queue.claim_next_job(s)
+    asyncio.run(runner.process_job(claimed, SETTINGS))
+    with session_factory() as s:
+        (log,) = s.query(LLMUsageLog).all()
+        assert log.succeeded is False and log.error_message == "401"
+
+
+def test_usage_survives_job_deletion(monkeypatch, worker_db, session_factory, make_job):
+    job_id = make_job()
+    monkeypatch.setattr(runner, "fetch_page", _fake_fetch())
+    monkeypatch.setattr(runner, "extract", _fake_extract)
+    with session_factory() as s:
+        claimed = queue.claim_next_job(s)
+    asyncio.run(runner.process_job(claimed, SETTINGS))
+    with session_factory() as s:
+        s.delete(s.get(ScrapeJob, job_id))
+        s.commit()
+        logs = s.query(LLMUsageLog).all()
+        assert len(logs) == 2 and all(l.job_id is None for l in logs)
