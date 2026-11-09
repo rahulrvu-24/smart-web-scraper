@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     browser_executable_path: str | None = None  # only needed if Chromium isn't where Playwright expects
     min_text_chars_before_render: int = 400
 
+    # Background worker and limits
+    worker_enabled: bool = True
+    worker_poll_seconds: float = 2.0
+    job_max_attempts: int = 3
+    job_stale_after_seconds: int = 300
+    jobs_per_hour: int = 30
+    max_active_jobs_per_user: int = 5
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip().rstrip("/") for o in self.cors_origins.split(",") if o.strip()]
