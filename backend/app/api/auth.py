@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy import select
 
-from app.api.deps import DbSession
+from app.api.deps import CurrentUser, DbSession
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models import User
 from app.schemas.user import Token, UserCreate, UserRead
@@ -37,3 +37,7 @@ def login(form: Annotated[OAuth2PasswordRequestForm, Depends()], db: DbSession) 
     if not user.is_active:
         raise HTTPException(status.HTTP_403_FORBIDDEN, detail="This account is disabled")
     return Token(access_token=create_access_token(str(user.id)))
+
+@router.get("/me", response_model=UserRead)
+def me(user: CurrentUser) -> User:
+    return user

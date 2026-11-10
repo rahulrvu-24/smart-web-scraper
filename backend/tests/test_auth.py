@@ -1,4 +1,5 @@
 from app.models import User
+from tests.conftest import register_and_login
 
 
 def _register(client, email="rahul@example.com", password="s3cret-pass"):
@@ -44,3 +45,14 @@ def test_wrong_password_or_unknown_email(client):
     unknown = client.post("/auth/login", data={"username": "nobody@example.com", "password": "s3cret-pass"})
     assert wrong.status_code == unknown.status_code == 401
     assert wrong.json() == unknown.json()  # same message: don't reveal which emails exist
+
+def test_me_returns_the_logged_in_user(client):
+    headers = register_and_login(client)
+    me = client.get("/auth/me", headers=headers)
+    assert me.status_code == 200
+    assert me.json()["email"] == "rahul@example.com"
+
+
+def test_me_requires_a_valid_token(client):
+    assert client.get("/auth/me").status_code == 401
+    assert client.get("/auth/me", headers={"Authorization": "Bearer garbage"}).status_code == 401
