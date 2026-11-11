@@ -105,7 +105,7 @@ smart-web-scraper/
 │   │   ├── extraction/     field specs → JSON Schema, Groq client, CLI
 │   │   └── worker/         Postgres queue + worker loop
 │   ├── alembic/            migrations
-│   ├── tests/              94 tests (unit + Postgres-backed)
+│   ├── tests/              101 tests (unit + Postgres-backed)
 │   └── Dockerfile
 ├── frontend/
 │   ├── app/                landing, login, register, dashboard, jobs/[id], schemas, activity, status
