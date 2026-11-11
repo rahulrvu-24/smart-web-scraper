@@ -4,7 +4,8 @@ import httpx2 as httpx
 import pytest
 
 from app.core.config import Settings
-from app.scraper.fetcher import FetchError, fetch_http
+from app.scraper import fetcher
+from app.scraper.fetcher import FetchedPage, FetchError, fetch_http, fetch_page
 from app.scraper.url_guard import UnsafeURLError
 
 SETTINGS = Settings(max_page_bytes=1000)
@@ -53,3 +54,39 @@ def test_server_errors_are_retryable_but_404_is_not(public_dns):
     with pytest.raises(FetchError) as missing:
         _fetch("https://shop.example/", lambda r: httpx.Response(404))
     assert not missing.value.retryable
+
+
+def test_render_js_goes_straight_to_the_browser_and_scrolls(public_dns, monkeypatch):
+    calls = {}
+
+    async def browser(url, settings, scroll=False):
+        calls["scroll"] = scroll
+        return FetchedPage(url=url, status_code=200, html="<p>items</p>", method="browser")
+
+    async def no_http(*args, **kwargs):
+        raise AssertionError("plain HTTP should be skipped")
+
+    monkeypatch.setattr(fetcher, "fetch_browser", browser)
+    monkeypatch.setattr(fetcher, "fetch_http", no_http)
+    page = asyncio.run(fetch_page("https://shop.example/men", Settings(), render_js=True))
+    assert page.method == "browser" and calls == {"scroll": True}
+
+
+def test_render_js_still_checks_the_url():
+    with pytest.raises(UnsafeURLError):
+        asyncio.run(fetch_page("http://169.254.169.254/", Settings(), render_js=True))
+
+
+def test_render_js_browser_crash_becomes_a_retryable_fetch_error(public_dns, monkeypatch):
+    async def crash(url, settings, scroll=False):
+        raise RuntimeError("chromium died")
+
+    monkeypatch.setattr(fetcher, "fetch_browser", crash)
+    with pytest.raises(FetchError, match="render the page") as info:
+        asyncio.run(fetch_page("https://shop.example/", Settings(), render_js=True))
+    assert info.value.retryable
+
+
+def test_render_js_refused_when_browser_disabled(public_dns):
+    with pytest.raises(FetchError, match="turned off"):
+        asyncio.run(fetch_page("https://shop.example/", Settings(playwright_enabled=False), render_js=True))

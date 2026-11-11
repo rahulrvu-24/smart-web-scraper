@@ -74,7 +74,20 @@ async def fetch_http(url: str, settings: Settings, transport: httpx.AsyncBaseTra
         raise FetchError("Too many redirects")
 
 
-async def fetch_browser(url: str, settings: Settings) -> FetchedPage:
+async def _scroll_to_load_more(page, settings: Settings) -> int:
+    """Scroll to the bottom until the page stops growing, so infinite-scroll lists load more items."""
+    last_height = await page.evaluate("document.body.scrollHeight")
+    for scrolls in range(1, settings.max_scrolls + 1):
+        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        await page.wait_for_timeout(1200)
+        height = await page.evaluate("document.body.scrollHeight")
+        if height == last_height:
+            return scrolls
+        last_height = height
+    return settings.max_scrolls
+
+
+async def fetch_browser(url: str, settings: Settings, scroll: bool = False) -> FetchedPage:
     """Render with headless Chromium. Sub-requests are SSRF-checked and heavy assets skipped."""
     from playwright.async_api import async_playwright  # imported lazily: optional and heavy
 
@@ -97,19 +110,40 @@ async def fetch_browser(url: str, settings: Settings) -> FetchedPage:
             page = await browser.new_page(user_agent=USER_AGENT)
             await page.route("**/*", guard)
             response = await page.goto(url, wait_until="domcontentloaded", timeout=settings.fetch_timeout_seconds * 1000)
+            status = response.status if response else 200
+            if status >= 400:
+                raise FetchError(
+                    f"The site returned HTTP {status} to the browser (some sites block automated browsers)",
+                    retryable=status == 429 or status >= 500,
+                )
             try:
                 await page.wait_for_load_state("networkidle", timeout=5000)
             except Exception:  # noqa: BLE001 - some pages never go idle; use what we have
                 pass
+            if scroll:
+                scrolls = await _scroll_to_load_more(page, settings)
+                log.info("Scrolled %s %d times", urlsplit(url).hostname, scrolls)
             html = await page.content()
-            final_url = check_url(page.url)
-            status = response.status if response else 200
+            final_url = await asyncio.to_thread(check_url, page.url)
             return FetchedPage(url=final_url, status_code=status, html=html, method="browser")
         finally:
             await browser.close()
 
 
-async def fetch_page(url: str, settings: Settings) -> FetchedPage:
+async def fetch_page(url: str, settings: Settings, render_js: bool = False) -> FetchedPage:
+    """Plain HTTP first; Chromium if the page looks empty. With render_js, always Chromium and scroll."""
+    if render_js:
+        if not settings.playwright_enabled:
+            raise FetchError("JavaScript rendering is turned off on this server")
+        await asyncio.to_thread(check_url, url)
+        try:
+            return await fetch_browser(url, settings, scroll=True)
+        except (UnsafeURLError, FetchError):
+            raise
+        except Exception as exc:  # noqa: BLE001 - surface browser failures as a normal job error
+            log.warning("Browser render failed for %s: %s", urlsplit(url).hostname, exc)
+            raise FetchError(f"Could not render the page in a browser ({type(exc).__name__})", retryable=True)
+
     page = await fetch_http(url, settings)
     if not settings.playwright_enabled or visible_text_length(page.html) >= settings.min_text_chars_before_render:
         return page

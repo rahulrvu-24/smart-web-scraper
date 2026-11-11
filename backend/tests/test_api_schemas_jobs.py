@@ -82,3 +82,12 @@ def test_active_job_limit(client, auth, public_dns):
 
 def test_jobs_require_login(client):
     assert client.get("/jobs").status_code == 401
+
+
+def test_render_js_is_saved_on_the_job(client, auth, public_dns):
+    body = {"url": "https://shop.example/men", "fields": {"products": {"type": "string_list"}}, "render_js": True}
+    job = client.post("/jobs", json=body, headers=auth).json()
+    assert job["render_js"] is True
+    assert client.get(f"/jobs/{job['id']}", headers=auth).json()["render_js"] is True
+    default = client.post("/jobs", json={**body, "render_js": False}, headers=auth).json()
+    assert default["render_js"] is False

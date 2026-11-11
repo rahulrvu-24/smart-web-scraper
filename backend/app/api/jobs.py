@@ -67,10 +67,12 @@ async def create_job(body: JobCreate, db: DbSession, user: CurrentUser, request:
     else:
         fields = {k: v.model_dump() for k, v in (body.fields or {}).items()}
 
-    job = ScrapeJob(user_id=user.id, schema_id=body.schema_id, url=url, fields=fields)
+    job = ScrapeJob(user_id=user.id, schema_id=body.schema_id, url=url, fields=fields, render_js=body.render_js)
     db.add(job)
     db.flush()
-    audit.record(db, request, "job.create", user.id, "scrape_job", job.id, {"url": url[:500]})
+    audit.record(
+        db, request, "job.create", user.id, "scrape_job", job.id, {"url": url[:500], "render_js": body.render_js}
+    )
     db.commit()
     return _get_owned(db, user, job.id)
 

@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import DateTime, Enum, ForeignKey, Index, Text, func, text
+from sqlalchemy import DateTime, Enum, ForeignKey, Index, Text, false, func, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -38,6 +38,8 @@ class ScrapeJob(Base):
     # The fields as they were when the job was submitted, so editing or deleting
     # the schema later can't change what this job extracts.
     fields: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    # Always load the page in headless Chromium and scroll it (for JavaScript-built pages).
+    render_js: Mapped[bool] = mapped_column(default=False, server_default=false())
     status: Mapped[JobStatus] = mapped_column(
         Enum(JobStatus, name="job_status", values_callable=lambda e: [m.value for m in e]),
         default=JobStatus.QUEUED,

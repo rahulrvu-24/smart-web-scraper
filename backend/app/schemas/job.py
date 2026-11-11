@@ -12,6 +12,7 @@ class JobCreate(BaseModel):
     url: str = Field(min_length=1, max_length=2048)
     schema_id: uuid.UUID | None = None
     fields: dict[str, FieldSpec] | None = None
+    render_js: bool = False
 
     @field_validator("fields")
     @classmethod
@@ -48,6 +49,7 @@ class JobSummary(BaseModel):
     url: str
     status: JobStatus
     schema_id: uuid.UUID | None
+    render_js: bool
     attempts: int
     error_message: str | None
     created_at: datetime

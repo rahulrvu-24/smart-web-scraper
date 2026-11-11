@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     max_page_bytes: int = 5_000_000
     playwright_enabled: bool = True
     browser_executable_path: str | None = None  # only needed if Chromium isn't where Playwright expects
+    max_scrolls: int = 8  # "Render JavaScript" jobs scroll this many times at most to load more items
     min_text_chars_before_render: int = 400
 
     # Background worker and limits

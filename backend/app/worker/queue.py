@@ -26,6 +26,7 @@ class ClaimedJob:
     url: str
     fields: dict[str, Any]
     attempts: int
+    render_js: bool = False
 
 
 def claim_next_job(db: Session) -> ClaimedJob | None:
@@ -46,7 +47,14 @@ def claim_next_job(db: Session) -> ClaimedJob | None:
     job.finished_at = None
     job.attempts += 1
     db.commit()
-    return ClaimedJob(id=job.id, user_id=job.user_id, url=job.url, fields=dict(job.fields), attempts=job.attempts)
+    return ClaimedJob(
+        id=job.id,
+        user_id=job.user_id,
+        url=job.url,
+        fields=dict(job.fields),
+        attempts=job.attempts,
+        render_js=job.render_js,
+    )
 
 
 def recover_stale_jobs(db: Session, settings: Settings) -> int:

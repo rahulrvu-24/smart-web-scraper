@@ -34,7 +34,7 @@ def worker_db(monkeypatch, session_factory):
 
 
 def _fake_fetch(html="<html><title>Shop</title><body><h1>Pro</h1><p>$42.99</p></body></html>"):
-    async def fetch(url, settings):
+    async def fetch(url, settings, render_js=False):
         return FetchedPage(url=url, status_code=200, html=html, method="http")
 
     return fetch
@@ -82,7 +82,7 @@ def test_successful_job_stores_result(monkeypatch, worker_db, session_factory, m
 def test_temporary_failure_is_retried_with_backoff(monkeypatch, worker_db, session_factory, make_job):
     job_id = make_job()
 
-    async def flaky(url, settings):
+    async def flaky(url, settings, render_js=False):
         raise FetchError("Site returned HTTP 503", retryable=True)
 
     monkeypatch.setattr(runner, "fetch_page", flaky)
@@ -121,7 +121,7 @@ def test_gives_up_after_max_attempts(monkeypatch, worker_db, session_factory, ma
         claimed = queue.claim_next_job(s)  # attempt 3 of 3
     assert claimed.attempts == 3
 
-    async def flaky(url, settings):
+    async def flaky(url, settings, render_js=False):
         raise FetchError("timeout", retryable=True)
 
     monkeypatch.setattr(runner, "fetch_page", flaky)
@@ -199,3 +199,24 @@ def test_usage_survives_job_deletion(monkeypatch, worker_db, session_factory, ma
         s.commit()
         logs = s.query(LLMUsageLog).all()
         assert len(logs) == 2 and all(l.job_id is None for l in logs)
+
+
+def test_render_js_is_passed_to_the_fetcher(monkeypatch, worker_db, session_factory, db):
+    user = User(email="js@example.com", hashed_password="x")
+    db.add(user)
+    db.commit()
+    db.add(ScrapeJob(user_id=user.id, url="https://spa.example/", fields=FIELDS, render_js=True))
+    db.commit()
+    seen = {}
+
+    async def fetch(url, settings, render_js=False):
+        seen["render_js"] = render_js
+        return FetchedPage(url=url, status_code=200, html="<title>Shop</title><h1>Pro</h1>", method="browser")
+
+    monkeypatch.setattr(runner, "fetch_page", fetch)
+    monkeypatch.setattr(runner, "extract", _fake_extract)
+    with session_factory() as s:
+        claimed = queue.claim_next_job(s)
+    assert claimed.render_js is True
+    asyncio.run(runner.process_job(claimed, SETTINGS))
+    assert seen == {"render_js": True}

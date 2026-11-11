@@ -29,7 +29,7 @@ async def process_job(job: queue.ClaimedJob, settings: Settings) -> None:
     log.info("Job %s attempt %d: %s", job.id, job.attempts, job.url)
     try:
         fields = FieldSet(fields=job.fields).fields
-        page = await fetch_page(job.url, settings)
+        page = await fetch_page(job.url, settings, render_js=job.render_js)
         clean = await asyncio.to_thread(clean_html, page.html)
         if not clean.text and not clean.json_ld:
             raise FetchError("The page had no readable text")
