@@ -39,9 +39,11 @@ def db_engine():
     finally:
         admin.dispose()
     engine = create_engine(test_url)
-    Base.metadata.drop_all(engine)
+    # Start from an empty schema every run, so tables or types left over from an
+    # older version of the models can never get in the way.
     with engine.begin() as conn:
-        conn.execute(text("DROP TYPE IF EXISTS job_status"))
+        conn.execute(text("DROP SCHEMA public CASCADE"))
+        conn.execute(text("CREATE SCHEMA public"))
     Base.metadata.create_all(engine)
     yield engine
     engine.dispose()
@@ -73,6 +75,12 @@ def client(session_factory) -> Iterator[TestClient]:
         yield TestClient(app)  # no `with`: the background worker is not started in tests
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def public_dns(monkeypatch):
+    """Pretend every hostname resolves to a public IP, so tests never need the internet."""
+    monkeypatch.setattr("app.scraper.url_guard.resolve_host", lambda host: ["93.184.215.14"])
 
 
 def register_and_login(client: TestClient, email: str = "rahul@example.com", password: str = "s3cret-pass") -> dict[str, str]:

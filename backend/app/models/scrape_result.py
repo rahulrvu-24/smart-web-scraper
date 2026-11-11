@@ -26,6 +26,12 @@ class ScrapeResult(Base):
     validation_errors: Mapped[list[Any] | None] = mapped_column(JSONB)
     llm_model: Mapped[str | None] = mapped_column(String(100))
     raw_html_key: Mapped[str | None] = mapped_column(Text)
+    final_url: Mapped[str | None] = mapped_column(Text)
+    page_title: Mapped[str | None] = mapped_column(Text)
+    fetch_method: Mapped[str | None] = mapped_column(String(16))
+    input_tokens: Mapped[int] = mapped_column(default=0, server_default="0")
+    output_tokens: Mapped[int] = mapped_column(default=0, server_default="0")
+    latency_ms: Mapped[int | None]
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     job: Mapped["ScrapeJob"] = relationship(back_populates="result")
