@@ -120,7 +120,7 @@ function Schemas() {
       ) : schemas.length === 0 ? (
         !draft && <p className="text-sm text-ink-muted">No schemas yet. Create one here, or save fields from the dashboard.</p>
       ) : (
-        <ul className="grid md:grid-cols-2 gap-4">
+        <ul className="grid grid-cols-[minmax(0,1fr)] md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-4">
           {schemas.map((s) => (
             <li key={s.id} className="border border-line bg-white p-5 flex flex-col gap-3">
               <div className="flex items-start justify-between gap-3">

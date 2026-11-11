@@ -307,7 +307,7 @@ function Dashboard() {
         <p className="text-ink-muted text-sm mt-1">Give it a URL and the fields you want back.</p>
       </div>
       {loadError && <Alert>{loadError}</Alert>}
-      <div className="grid lg:grid-cols-[1.25fr_1fr] gap-6 items-start">
+      <div className="grid grid-cols-[minmax(0,1fr)] lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-6 items-start">
         <NewJobForm schemas={schemas} onSchemaSaved={loadSchemas} />
         <div className="flex flex-col gap-6">
           <RecentJobs jobs={jobs} total={total} />
