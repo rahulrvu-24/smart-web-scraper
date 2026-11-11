@@ -1,5 +1,6 @@
 # Render Blueprint: the FastAPI API + background worker as one free Docker web service.
 # Postgres is hosted separately (Neon); paste its connection string as DATABASE_URL.
+# With rootDir set, dockerfilePath and dockerContext are relative to backend/.
 services:
   - type: web
     runtime: docker
@@ -7,8 +8,8 @@ services:
     plan: free
     region: singapore
     rootDir: backend
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /health
     envVars:
       - key: ENVIRONMENT
