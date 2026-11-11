@@ -6,6 +6,7 @@ so it only runs when the HTTP response has almost no visible text (a JavaScript 
 
 import asyncio
 import logging
+import sys
 from dataclasses import dataclass
 from urllib.parse import urljoin, urlsplit
 
@@ -89,6 +90,23 @@ async def _scroll_to_load_more(page, settings: Settings) -> int:
 
 async def fetch_browser(url: str, settings: Settings, scroll: bool = False) -> FetchedPage:
     """Render with headless Chromium. Sub-requests are SSRF-checked and heavy assets skipped."""
+    if sys.platform == "win32":
+        # Launching Chromium starts a subprocess. On Windows, `uvicorn --reload` runs on a
+        # SelectorEventLoop, which can't start subprocesses (NotImplementedError), so run the
+        # browser on its own ProactorEventLoop in a worker thread instead.
+        return await asyncio.to_thread(_run_on_proactor_loop, url, settings, scroll)
+    return await _fetch_browser(url, settings, scroll)
+
+
+def _run_on_proactor_loop(url: str, settings: Settings, scroll: bool) -> FetchedPage:
+    loop = asyncio.ProactorEventLoop()  # type: ignore[attr-defined]  # Windows only
+    try:
+        return loop.run_until_complete(_fetch_browser(url, settings, scroll))
+    finally:
+        loop.close()
+
+
+async def _fetch_browser(url: str, settings: Settings, scroll: bool) -> FetchedPage:
     from playwright.async_api import async_playwright  # imported lazily: optional and heavy
 
     async def guard(route):
