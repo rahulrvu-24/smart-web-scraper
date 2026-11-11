@@ -131,6 +131,7 @@ export type JobSummary = {
   url: string;
   status: JobStatus;
   schema_id: string | null;
+  render_js: boolean;
   attempts: number;
   error_message: string | null;
   created_at: string;
@@ -181,7 +182,7 @@ export type ActivityItem = {
   created_at: string;
 };
 
-export type NewJob = { url: string; schema_id: string } | { url: string; fields: Fields };
+export type NewJob = ({ url: string; schema_id: string } | { url: string; fields: Fields }) & { render_js?: boolean };
 
 // ---------- endpoints ----------
 

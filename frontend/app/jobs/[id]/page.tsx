@@ -150,7 +150,8 @@ function JobDetail({ id }: { id: string }) {
       )}
       {inProgress && !job.error_message && (
         <p className="text-sm text-ink-muted">
-          The worker is loading the page and asking the model for your fields. This usually takes 5–20 seconds.
+          The worker is loading the page{job.render_js ? " in a headless browser and scrolling it" : ""} and asking the
+          model for your fields. This usually takes {job.render_js ? "15–40" : "5–20"} seconds.
         </p>
       )}
 
@@ -192,7 +193,11 @@ function JobDetail({ id }: { id: string }) {
           <Panel title="How it ran">
             <dl className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-4 text-sm">
               {[
-                ["Fetched with", result.fetch_method === "browser" ? "Headless Chromium" : "Plain HTTP"],
+                [
+                  "Fetched with",
+                  (result.fetch_method === "browser" ? "Headless Chromium" : "Plain HTTP") +
+                    (job.render_js ? " (render JavaScript on)" : ""),
+                ],
                 ["Model", result.llm_model ?? "—"],
                 ["Tokens in / out", `${result.input_tokens} / ${result.output_tokens}`],
                 ["LLM time", result.latency_ms != null ? `${(result.latency_ms / 1000).toFixed(1)} s` : "—"],

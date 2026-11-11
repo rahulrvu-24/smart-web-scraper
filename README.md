@@ -11,7 +11,7 @@ Design and build a production-grade, hosted full-stack AI web scraper that uses 
 1. **Submit** a URL and a schema: the fields you want, each with a type (text, number, whole number, yes/no, list) and an optional hint.
 2. **Validate:** the API resolves the hostname and refuses private, loopback, link-local and cloud-metadata addresses before anything is fetched.
 3. **Queue:** the job is stored in Postgres with a snapshot of its fields, and the API returns immediately (`202 Accepted`).
-4. **Fetch:** a background worker claims the job, fetches the page over plain HTTP, and only launches headless Chromium if the page is a JavaScript shell. Every redirect and every browser sub-request is SSRF-checked again.
+4. **Fetch:** a background worker claims the job, fetches the page over plain HTTP, and only launches headless Chromium if the page is a JavaScript shell. With **Render JavaScript** ticked, it always uses Chromium and scrolls until the page stops growing (up to `MAX_SCROLLS`, default 8), so shops that load products as you scroll return the full list. Every redirect and every browser sub-request is SSRF-checked again.
 5. **Extract:** the cleaned page text and any schema.org JSON-LD go to Groq's `openai/gpt-oss-120b` with a **strict JSON-schema response format**, so the reply has exactly your keys and types. If that model fails, `llama-3.3-70b-versatile` in JSON mode takes over.
 6. **Validate and store:** a Pydantic model built from your schema re-checks the output; mismatches are recorded, not hidden. The dashboard polls and shows the result.
 

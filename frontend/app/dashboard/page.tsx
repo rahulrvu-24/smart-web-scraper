@@ -19,6 +19,7 @@ function NewJobForm({ schemas, onSchemaSaved }: { schemas: Schema[]; onSchemaSav
   const [schemaId, setSchemaId] = useState<string>(CUSTOM);
   const [rows, setRows] = useState<FieldRow[]>(() => [newRow("title", "string", "")]);
   const [saveName, setSaveName] = useState("");
+  const [renderJs, setRenderJs] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -64,9 +65,9 @@ function NewJobForm({ schemas, onSchemaSaved }: { schemas: Schema[]; onSchemaSav
     if (schemaId === CUSTOM) {
       const { fields, error: fieldError } = fieldsFromRows(rows);
       if (fieldError) return setError(fieldError);
-      body = { url: url.trim(), fields };
+      body = { url: url.trim(), fields, render_js: renderJs };
     } else {
-      body = { url: url.trim(), schema_id: schemaId };
+      body = { url: url.trim(), schema_id: schemaId, render_js: renderJs };
     }
     setBusy(true);
     try {
@@ -142,6 +143,22 @@ function NewJobForm({ schemas, onSchemaSaved }: { schemas: Schema[]; onSchemaSav
             ))}
           </ul>
         )}
+
+        <label className="flex items-start gap-3 text-sm cursor-pointer select-none">
+          <input
+            type="checkbox"
+            className="mt-0.5 h-4 w-4 accent-[var(--color-teal)]"
+            checked={renderJs}
+            onChange={(e) => setRenderJs(e.target.checked)}
+          />
+          <span>
+            <span className="font-semibold">Render JavaScript</span>
+            <span className="block text-ink-muted text-xs mt-0.5">
+              Loads the page in a headless browser and scrolls to load more items. Use it for shops and apps whose
+              products appear only after the page loads. Slower (10–30 s).
+            </span>
+          </span>
+        </label>
 
         {error && <Alert>{error}</Alert>}
         {notice && <Alert tone="info">{notice}</Alert>}
